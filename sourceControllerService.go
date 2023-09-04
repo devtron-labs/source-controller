@@ -111,11 +111,13 @@ func getPayloadForExternalCi(image, digest string) *ExternalCI {
 }
 
 func (impl *SourceControllerServiceImpl) ReconcileSourceWrapper() {
+	fmt.Println("cron started")
 	result, err := impl.ReconcileSource(context.Background())
 	if err != nil {
 		impl.logger.Errorw("error in reconciling sources", "err", err, "result", result)
 
 	}
+	fmt.Println("cron ended")
 }
 
 func (impl *SourceControllerServiceImpl) ReconcileSource(ctx context.Context) (bean.Result, error) {
