@@ -10,6 +10,7 @@ import (
 	"github.com/devtron-labs/source-controller/api"
 	"github.com/devtron-labs/source-controller/internal/logger"
 	"github.com/devtron-labs/source-controller/sql"
+	"github.com/devtron-labs/source-controller/sql/repo"
 )
 
 // Injectors from Wire.go:
@@ -25,6 +26,12 @@ func InitializeApp() (*App, error) {
 		return nil, err
 	}
 	router := api.NewRouter(sugaredLogger)
-	app := NewApp(sugaredLogger, db, router)
+	sourceControllerConfig, err := GetSourceControllerConfig()
+	if err != nil {
+		return nil, err
+	}
+	ciArtifactRepositoryImpl := repository.NewCiArtifactRepositoryImpl(db, sugaredLogger)
+	sourceControllerServiceImpl := NewSourceControllerServiceImpl(sugaredLogger, sourceControllerConfig, ciArtifactRepositoryImpl)
+	app := NewApp(sugaredLogger, db, router, sourceControllerServiceImpl)
 	return app, nil
 }

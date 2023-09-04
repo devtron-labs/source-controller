@@ -14,19 +14,22 @@ import (
 )
 
 type App struct {
-	Logger *zap.SugaredLogger
-	Router *api.Router
-	server *http.Server
-	db     *pg.DB
+	Logger    *zap.SugaredLogger
+	Router    *api.Router
+	server    *http.Server
+	db        *pg.DB
+	scService SourceControllerService
 }
 
 func NewApp(Logger *zap.SugaredLogger,
 	db *pg.DB,
-	Router *api.Router) *App {
+	Router *api.Router,
+	scCronService SourceControllerService) *App {
 	return &App{
-		Logger: Logger,
-		db:     db,
-		Router: Router,
+		Logger:    Logger,
+		db:        db,
+		Router:    Router,
+		scService: scCronService,
 	}
 }
 
@@ -50,6 +53,10 @@ func (app *App) Start() {
 	if err != nil {
 		app.Logger.Errorw("error in startup", "err", err)
 		os.Exit(2)
+	}
+	_, err = NewSourceControllerCronServiceImpl(app.Logger, app.scService)
+	if err != nil {
+		app.Logger.Errorw("error in starting NewSourceControllerCronServiceImpl", "err", err)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"github.com/devtron-labs/source-controller/api"
 	"github.com/devtron-labs/source-controller/internal/logger"
 	"github.com/devtron-labs/source-controller/sql"
+	repository "github.com/devtron-labs/source-controller/sql/repo"
 	"github.com/google/wire"
 )
 
@@ -17,14 +18,14 @@ func InitializeApp() (*App, error) {
 		api.NewRouter,
 		sql.GetConfig,
 		sql.NewDbConnection,
-		//GetSourceControllerConfig,
+		GetSourceControllerConfig,
 
-		//repository.NewCiArtifactRepositoryImpl,
-		//wire.Bind(new(repository.CiArtifactRepository), new(*repository.CiArtifactRepositoryImpl)),
+		repository.NewCiArtifactRepositoryImpl,
+		wire.Bind(new(repository.CiArtifactRepository), new(*repository.CiArtifactRepositoryImpl)),
 
-		//NewSourceControllerServiceImpl,
-		//wire.Bind(new(SourceControllerService), new(*SourceControllerServiceImpl)),
-		//
+		NewSourceControllerServiceImpl,
+		wire.Bind(new(SourceControllerService), new(*SourceControllerServiceImpl)),
+
 		//NewSourceControllerCronServiceImpl,
 		//wire.Bind(new(SourceControllerCronService), new(*SourceControllerCronServiceImpl)),
 	)
