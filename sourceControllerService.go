@@ -14,6 +14,7 @@ import (
 	gcrv1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 	"k8s.io/apimachinery/pkg/util/json"
 	kuberecorder "k8s.io/client-go/tools/record"
 	"net/http"
@@ -22,8 +23,8 @@ import (
 )
 
 type SourceControllerService interface {
-	CallExternalCIWebHook(digest, tag, host, repoName string) error
-	ReconcileSource(ctx context.Context) (bean.Result, error)
+	CallExternalCIWebHook(digest, tag, host, repoName string, externalCiId int) error
+	ReconcileSource(ctx context.Context, deployConfig DeployConfig) (bean.Result, error)
 	ReconcileSourceWrapper()
 }
 
@@ -36,14 +37,19 @@ type SourceControllerServiceImpl struct {
 }
 
 type SourceControllerConfig struct {
-	ImageShowCount int    `env:"IMAGE_COUNT_FROM_REPO" envDefault:"20"`
-	ExternalCiId   int    `env:"EXTERNAL_CI_ID" envDefault:"6"`
-	RepoName       string `env:"REPO_NAME_EXTERNAL_CI" envDefault:"stefanprodan/manifests/podinfo"`
-	RegistryURL    string `env:"REGISTRY_URL_EXTERNAL_CI" envDefault:"ghcr.io"`
-	Insecure       bool   `env:"INSECURE_EXTERNAL_CI" envDefault:"true"`
-	ApiToken       string `env:"API_TOKEN_EXTERNAL_CI" envDefault:""`
-	ServiceName    string `env:"WEBHOOK_SERVICE_NAME" envDefault:"devtron-service"`
-	Namespace      string `env:"WEBHOOK_NAMESPACE" envDefault:"devtroncd"`
+	ImageShowCount            int    `env:"IMAGE_COUNT_FROM_REPO" envDefault:"20"`
+	Insecure                  bool   `env:"INSECURE_EXTERNAL_CI" envDefault:"true"`
+	ApiToken                  string `env:"API_TOKEN_EXTERNAL_CI" envDefault:""`
+	ServiceName               string `env:"WEBHOOK_SERVICE_NAME" envDefault:"devtron-service"`
+	Namespace                 string `env:"WEBHOOK_NAMESPACE" envDefault:"devtroncd"`
+	DeployConfigExternalCi    string `env:"DEPLOY_CONFIG_EXTERNAL_CI"`
+	DeployConfigExternalCiObj []DeployConfig
+}
+
+type DeployConfig struct {
+	ExternalCiId int    `yaml:"EXTERNAL_CI_ID"`
+	RepoName     string `yaml:"REPO_NAME_EXTERNAL_CI"`
+	RegistryURL  string `yaml:"REGISTRY_URL_EXTERNAL_CI"`
 }
 
 var UserAgent = "flux/v2"
@@ -75,6 +81,12 @@ func GetSourceControllerConfig() (*SourceControllerConfig, error) {
 		fmt.Println("failed to parse server cluster status config: " + err.Error())
 		return nil, err
 	}
+	deployConfig, err := UnmarshalDeployConfig(cfg.DeployConfigExternalCi)
+	if err != nil {
+		fmt.Println("error in unmarshalling deploy config", "err", err)
+		return nil, err
+	}
+	cfg.DeployConfigExternalCiObj = deployConfig
 	return cfg, err
 }
 
@@ -97,21 +109,29 @@ func GetSourceControllerConfig() (*SourceControllerConfig, error) {
 
 func (impl *SourceControllerServiceImpl) ReconcileSourceWrapper() {
 	fmt.Println("cron started")
-	result, err := impl.ReconcileSource(context.Background())
-	if err != nil {
-		impl.logger.Errorw("error in reconciling sources", "err", err, "result", result)
+	deployConfig := impl.SCSconfig.DeployConfigExternalCiObj
+	impl.logger.Infow("deploy config after unmarshalling yaml", "deployConfig", deployConfig)
+	if len(deployConfig) == 0 {
+		impl.logger.Errorw("error: no deploy config provided")
+		return
+	}
+	for i := 0; i < len(deployConfig); i++ {
+		result, err := impl.ReconcileSource(context.Background(), deployConfig[i])
+		if err != nil {
+			impl.logger.Errorw("error in reconciling sources", "err", err, "result", result)
 
+		}
 	}
 	fmt.Println("cron ended")
 }
 
-func (impl *SourceControllerServiceImpl) ReconcileSource(ctx context.Context) (bean.Result, error) {
+func (impl *SourceControllerServiceImpl) ReconcileSource(ctx context.Context, deployConfig DeployConfig) (bean.Result, error) {
 	var auth authn.Authenticator
 	keychain := oci.Anonymous{}
 	transport := remote.DefaultTransport.(*http.Transport).Clone()
 	opts := makeRemoteOptions(ctx, transport, keychain, auth, impl.SCSconfig.Insecure)
 
-	url, err := parseRepositoryURLInValidFormat(impl.SCSconfig.RegistryURL, impl.SCSconfig.RepoName)
+	url, err := parseRepositoryURLInValidFormat(deployConfig.RegistryURL, deployConfig.RepoName)
 	if err != nil {
 		impl.logger.Errorw("error in parsing repository url in valid format", "err", err)
 		return bean.ResultEmpty, invalidOCIURLError{err}
@@ -146,15 +166,15 @@ func (impl *SourceControllerServiceImpl) ReconcileSource(ctx context.Context) (b
 		return bean.ResultEmpty, err
 	}
 	for digest, tag := range digestTagMap {
-		impl.CallExternalCIWebHook(digest, tag, impl.SCSconfig.RegistryURL, impl.SCSconfig.RepoName)
+		impl.CallExternalCIWebHook(digest, tag, deployConfig.RegistryURL, deployConfig.RepoName, deployConfig.ExternalCiId)
 	}
 	return bean.ResultSuccess, err
 }
 
 // CallExternalCIWebHook will do a http post request using service name and namespace on which orchestrator is running
-func (impl *SourceControllerServiceImpl) CallExternalCIWebHook(digest, tag, host, repoName string) error {
+func (impl *SourceControllerServiceImpl) CallExternalCIWebHook(digest, tag, host, repoName string, externalCiId int) error {
 	image := bean.ParseImage(host, repoName, tag)
-	url := bean.GetParsedWebhookServiceURL(impl.SCSconfig.ServiceName, impl.SCSconfig.Namespace, impl.SCSconfig.ExternalCiId)
+	url := bean.GetParsedWebhookServiceURL(impl.SCSconfig.ServiceName, impl.SCSconfig.Namespace, externalCiId)
 	payload := bean.GetPayloadForExternalCi(image, digest)
 	b, err := json.Marshal(payload)
 	if err != nil {
@@ -192,6 +212,15 @@ func (impl *SourceControllerServiceImpl) filterAlreadyPresentArtifacts(imageDige
 	}
 	return nil
 
+}
+
+func UnmarshalDeployConfig(data string) ([]DeployConfig, error) {
+	var deployConfig []DeployConfig
+	err := yaml.Unmarshal([]byte(data), &deployConfig)
+	if err != nil {
+		return nil, err
+	}
+	return deployConfig, nil
 }
 
 // getAllTags call the remote container registry, fetches all the tags from the repository
