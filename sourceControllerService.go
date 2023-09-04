@@ -43,6 +43,8 @@ type SourceControllerConfig struct {
 	RegistryURL    string `env:"REGISTRY_URL_EXTERNAL_CI" envDefault:"ghcr.io"`
 	Insecure       bool   `env:"INSECURE_EXTERNAL_CI" envDefault:"true"`
 	ApiToken       string `env:"API_TOKEN_EXTERNAL_CI" envDefault:""`
+	ServiceName    string `env:"WEBHOOK_SERVICE_NAME" envDefault:"devtron-service"`
+	Namespace      string `env:"WEBHOOK_NAMESPACE" envDefault:"devtroncd"`
 }
 
 var UserAgent = "flux/v2"
@@ -171,7 +173,7 @@ func (impl *SourceControllerServiceImpl) CallExternalCIWebHook(digest, tag strin
 	host := impl.SCSconfig.RegistryURL
 	repoName := impl.SCSconfig.RepoName
 	image := fmt.Sprintf("%s/%s:%s", host, repoName, tag)
-	url := bean.WebHookHostUrl + strconv.Itoa(impl.SCSconfig.ExternalCiId)
+	url := getParsedWebhookServiceURL(impl.SCSconfig.ServiceName, impl.SCSconfig.Namespace, impl.SCSconfig.ExternalCiId)
 	payload := getPayloadForExternalCi(image, digest)
 	b, err := json.Marshal(payload)
 	if err != nil {
@@ -276,6 +278,10 @@ func (r *SourceControllerServiceImpl) getRevision(url string, options []crane.Op
 		revision = fmt.Sprintf("%s@%s", repoTag, revision)
 	}
 	return revision, nil
+}
+func getParsedWebhookServiceURL(serviceName, namespace string, externalCiId int) string {
+	url := fmt.Sprintf("http://%s.%s.svc.cluster.local/orchestrator/webhook/ext-ci/", serviceName, namespace) + strconv.Itoa(externalCiId)
+	return url
 }
 
 //// getArtifactURL determines which tag or revision should be used and returns the OCI artifact FQN.
