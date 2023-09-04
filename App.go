@@ -47,16 +47,16 @@ func (app *App) Start() {
 	httpPort := serverConfig.SERVER_HTTP_PORT
 	app.Logger.Infow("starting server on ", "httpPort", httpPort)
 	app.Router.Init()
+	_, err = NewSourceControllerCronServiceImpl(app.Logger, app.scService)
+	if err != nil {
+		app.Logger.Errorw("error in starting NewSourceControllerCronServiceImpl", "err", err)
+	}
 	server := &http.Server{Addr: fmt.Sprintf(":%d", httpPort), Handler: app.Router.Router}
 	app.server = server
 	err = server.ListenAndServe()
 	if err != nil {
 		app.Logger.Errorw("error in startup", "err", err)
 		os.Exit(2)
-	}
-	_, err = NewSourceControllerCronServiceImpl(app.Logger, app.scService)
-	if err != nil {
-		app.Logger.Errorw("error in starting NewSourceControllerCronServiceImpl", "err", err)
 	}
 }
 
