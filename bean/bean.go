@@ -1,7 +1,9 @@
 package bean
 
 import (
+	"fmt"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strconv"
 )
 
 // Result is a type for creating an abstraction for the controller-runtime
@@ -187,4 +189,29 @@ type OCIRepositoryStatus struct {
 	// the source artifact.
 	// +optional
 	ObservedIgnore *string `json:"observedIgnore,omitempty"`
+}
+
+type ExternalCI struct {
+	DockerImage  string `json:"dockerImage" validate:"required,image-validator"`
+	Digest       string `json:"digest"`
+	DataSource   string `json:"dataSource"`
+	MaterialType string `json:"materialType"`
+}
+
+func GetPayloadForExternalCi(image, digest string) *ExternalCI {
+	payload := &ExternalCI{
+		DockerImage:  image,
+		Digest:       digest,
+		DataSource:   External,
+		MaterialType: MaterialTypeGit,
+	}
+	return payload
+}
+
+func GetParsedWebhookServiceURL(serviceName, namespace string, externalCiId int) string {
+	url := fmt.Sprintf("http://%s.%s.svc.cluster.local/orchestrator/webhook/ext-ci/", serviceName, namespace) + strconv.Itoa(externalCiId)
+	return url
+}
+func ParseImage(host, repoName, tag string) string {
+	return fmt.Sprintf("%s/%s:%s", host, repoName, tag)
 }

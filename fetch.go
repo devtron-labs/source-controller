@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/devtron-labs/source-controller/bean"
 	"github.com/devtron-labs/source-controller/oci"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/crane"
@@ -69,7 +70,7 @@ func CallExternalCIWebHook(digest, tag string) error {
 	repoName := RepoName
 	image := fmt.Sprintf("%s/%s:%s", host, repoName, tag)
 	url := "http://172.190.239.166:30797/orchestrator/webhook/ext-ci/" + strconv.Itoa(ExternalCiId)
-	payload := getPayloadForExternalCi(image, digest)
+	payload := bean.GetPayloadForExternalCi(image, digest)
 	b, err := json.Marshal(payload)
 	if err != nil {
 		return err

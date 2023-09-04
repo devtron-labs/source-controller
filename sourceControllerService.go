@@ -18,12 +18,11 @@ import (
 	kuberecorder "k8s.io/client-go/tools/record"
 	"net/http"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strconv"
 	"strings"
 )
 
 type SourceControllerService interface {
-	CallExternalCIWebHook(digest, tag string) error
+	CallExternalCIWebHook(digest, tag, host, repoName string) error
 	ReconcileSource(ctx context.Context) (bean.Result, error)
 	ReconcileSourceWrapper()
 }
@@ -79,13 +78,7 @@ func GetSourceControllerConfig() (*SourceControllerConfig, error) {
 	return cfg, err
 }
 
-type ExternalCI struct {
-	DockerImage  string `json:"dockerImage" validate:"required,image-validator"`
-	Digest       string `json:"digest"`
-	DataSource   string `json:"dataSource"`
-	MaterialType string `json:"materialType"`
-}
-
+// Have Kept For reference (can be used in future)
 //type CiCompleteEvent struct {
 //	CiProjectDetails   []pipeline.CiProjectDetails `json:"ciProjectDetails"`
 //	DockerImage        string                      `json:"dockerImage" validate:"required,image-validator"`
@@ -101,16 +94,6 @@ type ExternalCI struct {
 //	IsArtifactUploaded bool                        `json:"isArtifactUploaded"`
 //	FailureReason      string                      `json:"failureReason"`
 //}
-
-func getPayloadForExternalCi(image, digest string) *ExternalCI {
-	payload := &ExternalCI{
-		DockerImage:  image,
-		Digest:       digest,
-		DataSource:   bean.External,
-		MaterialType: bean.MaterialTypeGit,
-	}
-	return payload
-}
 
 func (impl *SourceControllerServiceImpl) ReconcileSourceWrapper() {
 	fmt.Println("cron started")
@@ -163,18 +146,16 @@ func (impl *SourceControllerServiceImpl) ReconcileSource(ctx context.Context) (b
 		return bean.ResultEmpty, err
 	}
 	for digest, tag := range digestTagMap {
-		impl.CallExternalCIWebHook(digest, tag)
+		impl.CallExternalCIWebHook(digest, tag, impl.SCSconfig.RegistryURL, impl.SCSconfig.RepoName)
 	}
 	return bean.ResultSuccess, err
 }
 
-// CallingExternalCiWebhook
-func (impl *SourceControllerServiceImpl) CallExternalCIWebHook(digest, tag string) error {
-	host := impl.SCSconfig.RegistryURL
-	repoName := impl.SCSconfig.RepoName
-	image := fmt.Sprintf("%s/%s:%s", host, repoName, tag)
-	url := getParsedWebhookServiceURL(impl.SCSconfig.ServiceName, impl.SCSconfig.Namespace, impl.SCSconfig.ExternalCiId)
-	payload := getPayloadForExternalCi(image, digest)
+// CallExternalCIWebHook will do a http post request using service name and namespace on which orchestrator is running
+func (impl *SourceControllerServiceImpl) CallExternalCIWebHook(digest, tag, host, repoName string) error {
+	image := bean.ParseImage(host, repoName, tag)
+	url := bean.GetParsedWebhookServiceURL(impl.SCSconfig.ServiceName, impl.SCSconfig.Namespace, impl.SCSconfig.ExternalCiId)
+	payload := bean.GetPayloadForExternalCi(image, digest)
 	b, err := json.Marshal(payload)
 	if err != nil {
 		impl.logger.Errorw("error in marshalling golang struct", "err", err)
@@ -278,10 +259,6 @@ func (r *SourceControllerServiceImpl) getRevision(url string, options []crane.Op
 		revision = fmt.Sprintf("%s@%s", repoTag, revision)
 	}
 	return revision, nil
-}
-func getParsedWebhookServiceURL(serviceName, namespace string, externalCiId int) string {
-	url := fmt.Sprintf("http://%s.%s.svc.cluster.local/orchestrator/webhook/ext-ci/", serviceName, namespace) + strconv.Itoa(externalCiId)
-	return url
 }
 
 //// getArtifactURL determines which tag or revision should be used and returns the OCI artifact FQN.
