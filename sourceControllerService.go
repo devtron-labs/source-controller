@@ -180,9 +180,13 @@ func (impl *SourceControllerServiceImpl) CallExternalCIWebHook(digest, tag strin
 	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(b))
+	if err != nil {
+		impl.logger.Errorw("error in new http POST request", "err", err)
+		return err
+	}
+	impl.logger.Infow("cron request", req)
 	req.Header.Set("api-token", impl.SCSconfig.ApiToken)
 	req.Header.Add("Content-Type", "application/json")
-
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
