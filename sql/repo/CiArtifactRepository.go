@@ -111,7 +111,7 @@ func (impl CiArtifactRepositoryImpl) GetByImageDigests(imageDigests []string) ([
 	var artifact []*CiArtifact
 	err := impl.dbConnection.Model(&artifact).
 		Column("ci_artifact.*").
-		Where("ci_artifact.image_digest in (?) ", imageDigests).
+		Where("ci_artifact.image_digest in (?) ", pg.In(imageDigests)).
 		Select()
 	return artifact, err
 }
