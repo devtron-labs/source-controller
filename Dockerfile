@@ -4,6 +4,8 @@ RUN echo $GOPATH
 
 RUN apk add --no-cache git gcc musl-dev
 RUN apk add --update make
+RUN go install github.com/google/wire/cmd/wire@latest
+
 WORKDIR /go/src/github.com/devtron-labs/source-controller
 ADD . /go/src/github.com/devtron-labs/source-controller
 RUN GOOS=linux make
