@@ -17,7 +17,7 @@ limitations under the License.
 package oci
 
 import (
-	"github.com/devtron-labs/devtron/pkg/sourceController/bean"
+	"github.com/devtron-labs/source-controller/bean"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

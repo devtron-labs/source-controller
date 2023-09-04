@@ -2,7 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	"github.com/devtron-labs/devtron/pkg/sourceController/internal/util"
+	"github.com/devtron-labs/source-controller/internal/util"
 	"github.com/juju/errors"
 	"net/http"
 )

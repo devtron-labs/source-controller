@@ -9,6 +9,7 @@ import (
 
 type SourceControllerCronService interface {
 }
+
 type SourceControllerCronServiceImpl struct {
 	logger                  *zap.SugaredLogger
 	sourceControllerService SourceControllerService

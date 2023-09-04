@@ -18,7 +18,7 @@
 package repository
 
 import (
-	"github.com/devtron-labs/devtron/pkg/sourceController/sql"
+	"github.com/devtron-labs/source-controller/sql"
 	"time"
 
 	"github.com/go-pg/pg"

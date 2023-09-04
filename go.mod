@@ -1,4 +1,4 @@
-module github.com/devtron-labs/devtron/pkg/sourceController
+module github.com/devtron-labs/source-controller
 
 go 1.20
 

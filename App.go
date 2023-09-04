@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/caarlos0/env"
-	"github.com/devtron-labs/devtron/pkg/sourceController/api"
+	"github.com/devtron-labs/source-controller/api"
 	"net/http"
 	"os"
 	"time"

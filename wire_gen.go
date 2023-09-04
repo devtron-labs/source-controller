@@ -7,9 +7,9 @@
 package main
 
 import (
-	"github.com/devtron-labs/devtron/pkg/sourceController/api"
-	"github.com/devtron-labs/devtron/pkg/sourceController/internal/logger"
-	"github.com/devtron-labs/devtron/pkg/sourceController/sql"
+	"github.com/devtron-labs/source-controller/api"
+	"github.com/devtron-labs/source-controller/internal/logger"
+	"github.com/devtron-labs/source-controller/sql"
 )
 
 // Injectors from Wire.go:
