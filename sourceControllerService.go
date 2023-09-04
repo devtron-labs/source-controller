@@ -126,7 +126,7 @@ func (impl *SourceControllerServiceImpl) ReconcileSource(ctx context.Context) (b
 
 	url, err := parseRepositoryURLInValidFormat(impl.SCSconfig.RegistryURL, impl.SCSconfig.RepoName)
 	if err != nil {
-		impl.logger.Errorw("error in parsung repository utl in valid format", "err", err)
+		impl.logger.Errorw("error in parsing repository url in valid format", "err", err)
 		return bean.ResultEmpty, invalidOCIURLError{err}
 	}
 	tags, err := getAllTags(url, opts.craneOpts)
