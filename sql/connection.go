@@ -15,7 +15,7 @@ type Config struct {
 	User            string `env:"PG_USER" envDefault:""`
 	Password        string `env:"PG_PASSWORD" envDefault:"" secretData:"-"`
 	Database        string `env:"PG_DATABASE" envDefault:"orchestrator"`
-	ApplicationName string `env:"APP" envDefault:"image-scanner"`
+	ApplicationName string `env:"APP" envDefault:"source-controller"`
 	LogQuery        bool   `env:"PG_LOG_QUERY" envDefault:"true"`
 }
 
