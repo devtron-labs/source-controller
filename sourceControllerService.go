@@ -160,7 +160,7 @@ func (impl *SourceControllerServiceImpl) ReconcileSource(ctx context.Context, de
 		digests = append(digests, digest)
 	}
 
-	err = impl.filterAlreadyPresentArtifacts(digests, digestTagMap)
+	err = impl.filterAlreadyPresentArtifacts(digests, digestTagMap, deployConfig.ExternalCiId)
 	if err != nil {
 		impl.logger.Errorw("error in filtering artifacts", "err", err)
 		return bean.ResultEmpty, err
@@ -201,8 +201,8 @@ func (impl *SourceControllerServiceImpl) CallExternalCIWebHook(digest, tag, host
 	return nil
 }
 
-func (impl *SourceControllerServiceImpl) filterAlreadyPresentArtifacts(imageDigests []string, digestTagMap map[string]string) error {
-	ciArtifacts, err := impl.ciArtifactRepository.GetByImageDigests(imageDigests)
+func (impl *SourceControllerServiceImpl) filterAlreadyPresentArtifacts(imageDigests []string, digestTagMap map[string]string, externalCiId int) error {
+	ciArtifacts, err := impl.ciArtifactRepository.GetByImageDigests(imageDigests, externalCiId)
 	if err != nil {
 		impl.logger.Errorw("error in getting ci artifact by image digests ", "err", err)
 		return err

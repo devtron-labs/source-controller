@@ -48,7 +48,7 @@ type CiArtifact struct {
 
 type CiArtifactRepository interface {
 	GetByImages(images []string) ([]*CiArtifact, error)
-	GetByImageDigests(imageDigests []string) ([]*CiArtifact, error)
+	GetByImageDigests(imageDigests []string, externalCiPipelineId int) ([]*CiArtifact, error)
 }
 
 type CiArtifactRepositoryImpl struct {
@@ -107,11 +107,12 @@ func (impl CiArtifactRepositoryImpl) GetByImages(images []string) ([]*CiArtifact
 	return artifact, err
 }
 
-func (impl CiArtifactRepositoryImpl) GetByImageDigests(imageDigests []string) ([]*CiArtifact, error) {
+func (impl CiArtifactRepositoryImpl) GetByImageDigests(imageDigests []string, externalCiPipelineId int) ([]*CiArtifact, error) {
 	var artifact []*CiArtifact
 	err := impl.dbConnection.Model(&artifact).
 		Column("ci_artifact.*").
 		Where("ci_artifact.image_digest in (?) ", pg.In(imageDigests)).
+		Where("ci_artifact.external_ci_pipeline_id = ?", externalCiPipelineId).
 		Select()
 	return artifact, err
 }
