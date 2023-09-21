@@ -26,6 +26,12 @@ func InitializeApp() (*App, error) {
 		NewSourceControllerServiceImpl,
 		wire.Bind(new(SourceControllerService), new(*SourceControllerServiceImpl)),
 
+		//ecr.NewReconciliationServiceImpl,
+		//wire.Bind(new(ecr.ReconciliationEcrService), new(*ecr.ReconciliationEcrServiceImpl)),
+
+		//common.NewCommonServiceImpl,
+		//wire.Bind(new(common.CommonService), new(*common.CommonServiceImpl)),
+
 		//NewSourceControllerCronServiceImpl,
 		//wire.Bind(new(SourceControllerCronService), new(*SourceControllerCronServiceImpl)),
 	)

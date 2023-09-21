@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/devtron-labs/source-controller/bean"
 	"github.com/devtron-labs/source-controller/oci"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -54,7 +57,7 @@ func fetch() {
 		digests = append(digests, digest)
 	}
 
-	//err = impl.filterAlreadyPresentArtifacts(digests, digestTagMap)
+	//err = impl.FilterAlreadyPresentArtifacts(digests, digestTagMap)
 	//if err != nil {
 	//	fmt.Println("error"+err.Error())
 	//}
@@ -88,4 +91,38 @@ func CallExternalCIWebHook(digest, tag string) error {
 	defer resp.Body.Close()
 
 	return nil
+}
+
+// 445808685819.dkr.ecr.us-east-2.amazonaws.com/kushagratest
+var (
+	repositoryName = ""
+	AccessKey      = ""
+	Passkey        = ""
+	EndpointUrl    = ""
+	IsInSecure     = ""
+	Region         = ""
+	registryId     = ""
+)
+
+func hello() {
+	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(AccessKey, Passkey, "")))
+	if err != nil {
+		fmt.Println("err", err.Error())
+		return
+	}
+	cfg.Region = Region
+	// Create ECR client from Config
+	client := ecr.NewFromConfig(cfg)
+	listImageInput := &ecr.ListImagesInput{
+		RepositoryName: &repositoryName,
+		RegistryId:     &registryId,
+	}
+
+	listImagesOutput, err := client.ListImages(context.Background(), listImageInput)
+	if err != nil {
+		fmt.Println("err", err.Error())
+		return
+	}
+	imageIdsIdentifier := listImagesOutput.ImageIds
+	fmt.Println(imageIdsIdentifier)
 }

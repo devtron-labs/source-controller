@@ -1,11 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"github.com/caarlos0/env"
 	"github.com/devtron-labs/source-controller/bean"
+	"github.com/devtron-labs/source-controller/common"
 	"github.com/devtron-labs/source-controller/oci"
 	repository "github.com/devtron-labs/source-controller/sql/repo"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -15,7 +15,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
-	"k8s.io/apimachinery/pkg/util/json"
 	kuberecorder "k8s.io/client-go/tools/record"
 	"net/http"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -23,7 +22,6 @@ import (
 )
 
 type SourceControllerService interface {
-	CallExternalCIWebHook(digest, tag, host, repoName string, externalCiId int) error
 	ReconcileSource(ctx context.Context, deployConfig DeployConfig) (bean.Result, error)
 	ReconcileSourceWrapper()
 }
@@ -32,6 +30,7 @@ type SourceControllerServiceImpl struct {
 	logger               *zap.SugaredLogger
 	SCSconfig            *SourceControllerConfig
 	ciArtifactRepository repository.CiArtifactRepository
+	commonService        common.CommonService
 	client.Client
 	kuberecorder.EventRecorder
 }
@@ -65,13 +64,13 @@ func (e invalidOCIURLError) Error() string {
 func NewSourceControllerServiceImpl(logger *zap.SugaredLogger,
 	cfg *SourceControllerConfig,
 	ciArtifactRepository repository.CiArtifactRepository) *SourceControllerServiceImpl {
-	sourceControllerServiceimpl := &SourceControllerServiceImpl{
+	sourceControllerServiceImpl := &SourceControllerServiceImpl{
 		logger:               logger,
 		SCSconfig:            cfg,
 		ciArtifactRepository: ciArtifactRepository,
 	}
 
-	return sourceControllerServiceimpl
+	return sourceControllerServiceImpl
 }
 
 func GetSourceControllerConfig() (*SourceControllerConfig, error) {
@@ -160,58 +159,18 @@ func (impl *SourceControllerServiceImpl) ReconcileSource(ctx context.Context, de
 		digests = append(digests, digest)
 	}
 
-	err = impl.filterAlreadyPresentArtifacts(digests, digestTagMap, deployConfig.ExternalCiId)
+	err = impl.commonService.FilterAlreadyPresentArtifacts(digests, digestTagMap, deployConfig.ExternalCiId)
 	if err != nil {
 		impl.logger.Errorw("error in filtering artifacts", "err", err)
 		return bean.ResultEmpty, err
 	}
 	for digest, tag := range digestTagMap {
-		impl.CallExternalCIWebHook(digest, tag, deployConfig.RegistryURL, deployConfig.RepoName, deployConfig.ExternalCiId)
+		err = impl.commonService.CallExternalCIWebHook(digest, tag, deployConfig.RegistryURL, deployConfig.RepoName, deployConfig.ExternalCiId)
+		if err != nil {
+			impl.logger.Errorw("error in calling external ci webhook", "err", err, "digest", digest, "repoName", deployConfig.RepoName, "externalCiId", deployConfig.ExternalCiId)
+		}
 	}
 	return bean.ResultSuccess, err
-}
-
-// CallExternalCIWebHook will do a http post request using service name and namespace on which orchestrator is running
-func (impl *SourceControllerServiceImpl) CallExternalCIWebHook(digest, tag, host, repoName string, externalCiId int) error {
-	image := bean.ParseImage(host, repoName, tag)
-	url := bean.GetParsedWebhookServiceURL(impl.SCSconfig.ServiceName, impl.SCSconfig.Namespace, externalCiId)
-	payload := bean.GetPayloadForExternalCi(image, digest)
-	b, err := json.Marshal(payload)
-	if err != nil {
-		impl.logger.Errorw("error in marshalling golang struct", "err", err)
-		return err
-	}
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(b))
-	if err != nil {
-		impl.logger.Errorw("error in new http POST request", "err", err)
-		return err
-	}
-	impl.logger.Infow("cron request", req)
-	req.Header.Set("api-token", impl.SCSconfig.ApiToken)
-	req.Header.Add("Content-Type", "application/json")
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		impl.logger.Errorw("error in hitting http request to web hook", "err", err)
-		return err
-	}
-	defer resp.Body.Close()
-
-	return nil
-}
-
-func (impl *SourceControllerServiceImpl) filterAlreadyPresentArtifacts(imageDigests []string, digestTagMap map[string]string, externalCiId int) error {
-	ciArtifacts, err := impl.ciArtifactRepository.GetByImageDigests(imageDigests, externalCiId)
-	if err != nil {
-		impl.logger.Errorw("error in getting ci artifact by image digests ", "err", err)
-		return err
-	}
-	for _, ciArtifact := range ciArtifacts {
-		delete(digestTagMap, ciArtifact.ImageDigest)
-	}
-	return nil
-
 }
 
 func UnmarshalDeployConfig(data string) ([]DeployConfig, error) {
@@ -289,87 +248,6 @@ func (r *SourceControllerServiceImpl) getRevision(url string, options []crane.Op
 	}
 	return revision, nil
 }
-
-//// getArtifactURL determines which tag or revision should be used and returns the OCI artifact FQN.
-//func (r *SourceControllerServiceImpl) getArtifactURL(obj *OCIRepository, options []crane.Option) (string, error) {
-//	url, err := r.parseRepositoryURL(obj)
-//	if err != nil {
-//		return "", invalidOCIURLError{err}
-//	}
-//
-//	if obj.Spec.Reference != nil {
-//		if obj.Spec.Reference.Digest != "" {
-//			return fmt.Sprintf("%s@%s", url, obj.Spec.Reference.Digest), nil
-//		}
-//
-//		if obj.Spec.Reference.SemVer != "" {
-//			tag, err := r.getTagBySemver(url, obj.Spec.Reference.SemVer, options)
-//			if err != nil {
-//				return "", err
-//			}
-//			return fmt.Sprintf("%s:%s", url, tag), nil
-//		}
-//
-//		if obj.Spec.Reference.Tag != "" {
-//			return fmt.Sprintf("%s:%s", url, obj.Spec.Reference.Tag), nil
-//		}
-//	}
-//
-//	return url, nil
-//}
-
-//// getTagBySemver call the remote container registry, fetches all the tags from the repository,
-//// and returns the latest tag according to the semver expression.
-//func (r *SourceControllerServiceImpl) getTagBySemver(url, exp string, options []crane.Option) (string, error) {
-//	tags, err := crane.ListTags(url, options...)
-//	if err != nil {
-//		return "", err
-//	}
-//
-//	constraint, err := semver.NewConstraint(exp)
-//	if err != nil {
-//		return "", fmt.Errorf("semver '%s' parse error: %w", exp, err)
-//	}
-//
-//	var matchingVersions []*semver.Version
-//	for _, t := range tags {
-//		v, err := bean.ParseVersion(t)
-//		if err != nil {
-//			continue
-//		}
-//
-//		if constraint.Check(v) {
-//			matchingVersions = append(matchingVersions, v)
-//		}
-//	}
-//
-//	if len(matchingVersions) == 0 {
-//		return "", fmt.Errorf("no match found for semver: %s", exp)
-//	}
-//
-//	sort.Sort(sort.Reverse(semver.Collection(matchingVersions)))
-//	return matchingVersions[0].Original(), nil
-//}
-
-//// parseRepositoryURL validates and extracts the repository URL.
-//func (r *SourceControllerServiceImpl) parseRepositoryURL(obj *OCIRepository) (string, error) {
-//	if !strings.HasPrefix(obj.Spec.URL, oci.OCIRepositoryPrefix) {
-//		return "", fmt.Errorf("URL must be in format 'oci://<domain>/<org>/<repo>'")
-//	}
-//
-//	url := strings.TrimPrefix(obj.Spec.URL, oci.OCIRepositoryPrefix)
-//	ref, err := name.ParseReference(url)
-//	if err != nil {
-//		return "", err
-//	}
-//
-//	imageName := strings.TrimPrefix(url, ref.Context().RegistryStr())
-//	if s := strings.Split(imageName, ":"); len(s) > 1 {
-//		return "", fmt.Errorf("URL must not contain a tag; remove ':%s'", s[1])
-//	}
-//
-//	return ref.Context().Name(), nil
-//}
 
 // remoteOptions contains the options to interact with a remote registry.
 // It can be used to pass options to go-containerregistry based libraries.

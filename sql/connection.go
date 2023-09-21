@@ -1,12 +1,10 @@
 package sql
 
 import (
-	"github.com/go-pg/pg"
-	"reflect"
-	"time"
-
 	"github.com/caarlos0/env/v6"
+	"github.com/go-pg/pg"
 	"go.uber.org/zap"
+	"reflect"
 )
 
 type Config struct {
@@ -45,17 +43,17 @@ func NewDbConnection(cfg *Config, logger *zap.SugaredLogger) (*pg.DB, error) {
 		logger.Infow("connected with db", "db", obfuscateSecretTags(cfg))
 	}
 	//--------------
-	if cfg.LogQuery {
-		dbConnection.OnQueryProcessed(func(event *pg.QueryProcessedEvent) {
-			query, err := event.FormattedQuery()
-			if err != nil {
-				panic(err)
-			}
-			logger.Infow("query time",
-				"duration", time.Since(event.StartTime),
-				"query", query)
-		})
-	}
+	//if cfg.LogQuery {
+	//	dbConnection.OnQueryProcessed(func(event *pg.QueryProcessedEvent) {
+	//		query, err := event.FormattedQuery()
+	//		if err != nil {
+	//			panic(err)
+	//		}
+	//		logger.Infow("query time",
+	//			"duration", time.Since(event.StartTime),
+	//			"query", query)
+	//	})
+	//}
 	return dbConnection, err
 }
 
